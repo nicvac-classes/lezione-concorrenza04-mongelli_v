@@ -53,55 +53,75 @@ pieno = threading.Semaphore(0)
 mutexP = threading.Semaphore(1)
 mutexC = threading.Semaphore(1)
 
-
 def genera_numero():
     return f"333-{random.randint(1000000, 9999999)}"
 
 
 class ProduttoreThread(threading.Thread):
-    # DA IMPLEMENTARE
-    pass
+    def __init__(self, numero):
+        super().__init__()
+        self.numero = numero
+
+    def run(self):
+        global metti
+        for _ in range(N_CHIAMATE):
+            numero = genera_numero()
+
+            vuoto.acquire()
+            mutexP.acquire()
+            buffer[metti] = numero
+            metti = (metti + 1) % DIM_BUFFER
+            mutexP.release()
+            pieno.release()
+
+            print(f"[LINEA-{self.numero}] ricevuta chiamata {numero}")
 
 
 class ConsumatoreThread(threading.Thread):
-    # DA IMPLEMENTARE
-    pass
+    def __init__(self, numero):
+        super().__init__()
+        self.numero = numero
+
+    def run(self):
+        global togli
+        while True:
+            pieno.acquire()
+            mutexC.acquire()
+            numero = buffer[togli]
+            togli = (togli + 1) % DIM_BUFFER
+            mutexC.release()
+            vuoto.release()
+
+            if numero is None:
+                break
+
+            print(f"[OP-{self.numero}] risponde a {numero}")
 
 
 def main():
     produttori = [ProduttoreThread(i + 1) for i in range(N_PRODUTTORI)]
     consumatori = [ConsumatoreThread(i + 1) for i in range(N_CONSUMATORI)]
 
-    # Avvia prima i consumatori, così sono pronti a ricevere chiamate
-    # non appena le linee iniziano a produrre.
     for c in consumatori:
         c.start()
     for p in produttori:
         p.start()
 
-    # Aspetta che tutte le linee abbiano terminato (ognuna ha prodotto
-    # N_CHIAMATE messaggi ed è uscita dal loop).
     for p in produttori:
         p.join()
 
     print("Tutte le linee hanno terminato. Chiusura operatori...")
 
-    # Invia una sentinella None per ogni operatore. Quando un operatore
-    # preleva None, sa che deve terminare. Il main è l'unico thread
-    # ancora attivo a scrivere nel buffer, quindi non serve mutexP.
     for _ in range(N_CONSUMATORI):
         vuoto.acquire()
         buffer[metti] = None
         metti = (metti + 1) % DIM_BUFFER
         pieno.release()
 
-    # Aspetta che tutti gli operatori abbiano terminato prima di uscire.
     for c in consumatori:
         c.join()
 
     print("Centralino chiuso.")
 
-
 if __name__ == "__main__":
     main()
-```
